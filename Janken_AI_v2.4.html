@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Janken_AI_v2.4</title>
+    <style>
+        :root { 
+            --main-color: #00ff41; 
+            --bg-color: #0a0a0a; 
+            --alert-color: #ff0000; 
+            --border-dim: #333;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        body { 
+            background: var(--bg-color); 
+            color: var(--main-color); 
+            font-family: 'Courier New', 'MS Gothic', monospace; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100dvh; 
+            overflow: hidden; 
+        }
+
+        /* ヘッダーエリア */
+        .header { 
+            padding: 10px 15px; 
+            border-bottom: 1px solid var(--border-dim); 
+            font-size: 0.7rem; 
+            display: flex; 
+            justify-content: space-between;
+            background: #000;
+        }
+
+        /* 統計表示エリア */
+        .stats-bar { 
+            padding: 10px 15px; 
+            background: #151515; 
+            font-size: 0.8rem; 
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            border-bottom: 2px solid var(--main-color); 
+        }
+
+        .stats-item { display: flex; justify-content: space-between; padding-right: 10px; }
+
+        /* ログ表示エリア */
+        .display { 
+            flex: 1; 
+            padding: 15px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column-reverse; 
+            font-size: 0.85rem;
+            background: linear-gradient(to bottom, #0a0a0a, #111);
+        }
+
+        /* 操作パネル */
+        .controls { 
+            padding: 25px 15px; 
+            background: #111; 
+            border-top: 1px solid var(--border-dim); 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px;
+            z-index: 10;
+        }
+
+        button { 
+            background: #1a1a1a; 
+            color: var(--main-color); 
+            border: 1px solid var(--main-color); 
+            padding: 22px 0; 
+            font-size: 1.1rem; 
+            font-weight: bold;
+            cursor: pointer; 
+            border-radius: 8px; 
+            touch-action: manipulation;
+            box-shadow: 0 4px 0 #006400;
+        }
+
+        button:active { 
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #006400;
+            background: var(--main-color); 
+            color: #000; 
+        }
+
+        /* ログ装飾 */
+        .log-entry { margin-bottom: 6px; border-left: 2px solid var(--border-dim); padding-left: 10px; }
+        .win { color: #fff; text-shadow: 0 0 8px var(--main-color); font-weight: bold; }
+        
+        /* 派手な更新通知 */
+        .ai-update-heavy { 
+            color: var(--alert-color); 
+            font-weight: 900; 
+            text-align: center; 
+            font-size: 1.2rem; 
+            margin: 15px 0; 
+            border: 4px double var(--alert-color); 
+            padding: 12px;
+            background: rgba(255, 0, 0, 0.15);
+            animation: blink 0.4s step-end infinite;
+        }
+
+        @keyframes blink { 
+            50% { border-color: transparent; color: transparent; background: transparent; } 
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <span>STATUS: STEALTH_WEAKNESS_INC</span>
+        <span>ID: R_TACHIBANA_01</span>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stats-item"><span>試合数:</span><span id="count">0</span></div>
+        <div class="stats-item"><span>MODE:</span><span id="mode">BOOTING</span></div>
+        <div class="stats-item"><span>勝ち:</span><span id="wins">0</span></div>
+        <div class="stats-item"><span>勝率:</span><span id="winrate">0.0</span>%</div>
+    </div>
+
+    <div id="log" class="display">
+        <div style="color: #666;">> 待機中。入力を開始して。</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="play(0)">グー</button>
+        <button onclick="play(1)">チョキ</button>
+        <button onclick="play(2)">パー</button>
+    </div>
+
+    <script>
+        let history = [];
+        let totalCount = 0;
+        let userWins = 0;
+        const hands = ["グー", "チョキ", "パー"];
+
+        function play(userHand) {
+            let cpuHand;
+
+            // --- ロジック分岐 ---
+            if (totalCount === 0) {
+                // 初回は指示通り「パー」固定
+                cpuHand = 2; 
+            } else {
+                // 指示：50%の確率で「負ける手」を出す（ログは隠蔽）
+                if (Math.random() < 0.5) {
+                    const lastUserHand = history[history.length - 1];
+                    cpuHand = (lastUserHand + 1) % 3;
+                } else {
+                    // 通常ロジック
+                    if (totalCount < 10) {
+                        cpuHand = Math.floor(Math.random() * 3);
+                    } else {
+                        // 学習型：直近10回の最頻出に勝つ手を出す
+                        const counts = [0, 0, 0];
+                        const recent = history.slice(-10);
+                        recent.forEach(h => counts[h]++);
+                        const favorite = counts.indexOf(Math.max(...counts));
+                        cpuHand = (favorite + 2) % 3; 
+                    }
+                }
+            }
+
+            // --- 状態更新 ---
+            history.push(userHand);
+            totalCount++;
+
+            let resultMsg = "";
+            if (userHand === cpuHand) {
+                resultMsg = "引き分け";
+            } else if ((userHand === 0 && cpuHand === 1) || (userHand === 1 && cpuHand === 2) || (userHand === 2 && cpuHand === 0)) {
+                resultMsg = "勝ち";
+                userWins++;
+            } else {
+                resultMsg = "負け";
+            }
+
+            // 統計計算
+            const winRate = ((userWins / totalCount) * 100).toFixed(1);
+
+            // UI反映
+            document.getElementById("count").innerText = totalCount;
+            document.getElementById("wins").innerText = userWins;
+            document.getElementById("winrate").innerText = winRate;
+            
+            outputLog(`[${totalCount}] 君:${hands[userHand]} vs 私:${hands[cpuHand]} > ${resultMsg}`);
+
+            // 10回ごとの更新処理
+            if (totalCount % 10 === 0) {
+                triggerUpdate();
+            } else if (totalCount === 1) {
+                document.getElementById("mode").innerText = "RUNNING";
+            }
+        }
+
+        function outputLog(msg) {
+            const logDiv = document.getElementById("log");
+            const entry = document.createElement("div");
+            entry.className = "log-entry";
+            if (msg.includes("勝ち")) entry.classList.add("win");
+            entry.textContent = `> ${msg}`;
+            logDiv.prepend(entry);
+        }
+
+        function triggerUpdate() {
+            document.getElementById("mode").innerText = "ADAPTIVE";
+            const logDiv = document.getElementById("log");
+            const entry = document.createElement("div");
+            entry.className = "ai-update-heavy";
+            entry.textContent = "⚠ 学習データ更新完了 ⚠";
+            logDiv.prepend(entry);
+        }
+    </script>
+</body>
+</html>
