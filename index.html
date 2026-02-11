@@ -149,10 +149,10 @@
 
             // --- ロジック分岐 ---
             if (totalCount === 0) {
-                // 初回は指示通り「パー」固定
+                // 初回は「パー」固定
                 cpuHand = 2; 
             } else {
-                // 指示：50%の確率で「負ける手」を出す（ログは隠蔽）
+                // 指示：50%の確率で「負ける手」を出す
                 if (Math.random() < 0.5) {
                     const lastUserHand = history[history.length - 1];
                     cpuHand = (lastUserHand + 1) % 3;
