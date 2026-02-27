@@ -3,24 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Janken_AI_v2.4</title>
+    <title>Janken_AI_FINAL</title>
     <style>
         :root { 
             --main-color: #00ff41; 
             --bg-color: #0a0a0a; 
             --alert-color: #ff0000; 
             --border-dim: #333;
+            --win-color: #ff0055;
+            --lose-color: #00ffff;
         }
 
-        * { 
-            box-sizing: border-box; 
-            -webkit-tap-highlight-color: transparent; 
-        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body { 
             background: var(--bg-color); 
             color: var(--main-color); 
-            font-family: 'Courier New', 'MS Gothic', monospace; 
+            font-family: 'Courier New', monospace; 
             margin: 0; 
             display: flex; 
             flex-direction: column; 
@@ -28,7 +27,6 @@
             overflow: hidden; 
         }
 
-        /* ヘッダーエリア */
         .header { 
             padding: 10px 15px; 
             border-bottom: 1px solid var(--border-dim); 
@@ -36,9 +34,9 @@
             display: flex; 
             justify-content: space-between;
             background: #000;
+            color: var(--alert-color);
         }
 
-        /* 統計表示エリア */
         .stats-bar { 
             padding: 10px 15px; 
             background: #151515; 
@@ -46,12 +44,11 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 5px;
-            border-bottom: 2px solid var(--main-color); 
+            border-bottom: 2px solid var(--alert-color); 
         }
 
         .stats-item { display: flex; justify-content: space-between; padding-right: 10px; }
 
-        /* ログ表示エリア */
         .display { 
             flex: 1; 
             padding: 15px; 
@@ -62,7 +59,6 @@
             background: linear-gradient(to bottom, #0a0a0a, #111);
         }
 
-        /* 操作パネル */
         .controls { 
             padding: 25px 15px; 
             background: #111; 
@@ -93,11 +89,10 @@
             color: #000; 
         }
 
-        /* ログ装飾 */
         .log-entry { margin-bottom: 6px; border-left: 2px solid var(--border-dim); padding-left: 10px; }
-        .win { color: #fff; text-shadow: 0 0 8px var(--main-color); font-weight: bold; }
+        .lose { color: var(--lose-color); font-weight: bold; } /* プレイヤー目線 */
+        .win { color: var(--win-color); font-weight: bold; } /* プレイヤー目線 */
         
-        /* 派手な更新通知 */
         .ai-update-heavy { 
             color: var(--alert-color); 
             font-weight: 900; 
@@ -106,29 +101,29 @@
             margin: 15px 0; 
             border: 4px double var(--alert-color); 
             padding: 12px;
-            background: rgba(255, 0, 0, 0.15);
-            animation: blink 0.4s step-end infinite;
+            background: rgba(255, 0, 0, 0.1);
+            animation: flash 0.5s infinite;
         }
 
-        @keyframes blink { 
-            50% { border-color: transparent; color: transparent; background: transparent; } 
+        @keyframes flash { 
+            50% { opacity: 0.5; } 
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <span>STATUS: STEALTH_WEAKNESS_INC</span>
+        <span>STATUS: ELIMINATION_MODE</span>
     </div>
 
     <div class="stats-bar">
         <div class="stats-item"><span>試合数:</span><span id="count">0</span></div>
-        <div class="stats-item"><span>MODE:</span><span id="mode">BOOTING</span></div>
-        <div class="stats-item"><span>勝ち:</span><span id="wins">0</span></div>
+        <div class="stats-item"><span>MODE:</span><span id="mode">PREDICTING</span></div>
+        <div class="stats-item"><span>あなたの勝ち:</span><span id="wins">0</span></div>
         <div class="stats-item"><span>勝率:</span><span id="winrate">0.0</span>%</div>
     </div>
 
     <div id="log" class="display">
-        <div style="color: #666;">> 待機中。入力を開始して。</div>
+        <div style="color: #666;">> 解析を開始する。</div>
     </div>
 
     <div class="controls">
@@ -138,7 +133,7 @@
     </div>
 
     <script>
-        let history = [];
+        let history = []; // プレイヤーの手の履歴
         let totalCount = 0;
         let userWins = 0;
         const hands = ["グー", "チョキ", "パー"];
@@ -146,42 +141,42 @@
         function play(userHand) {
             let cpuHand;
 
-            // --- ロジック分岐 ---
+            // --- 最強・完全予測ロジック ---
             if (totalCount === 0) {
-                // 初回は「パー」固定
-                cpuHand = 2; 
+                // 初手は「グー」で固定（相手がパーを出す確率を下げる）
+                cpuHand = 0;
             } else {
-                // 指示：50%の確率で「負ける手」を出す
-                if (Math.random() < 0.5) {
-                    const lastUserHand = history[history.length - 1];
-                    cpuHand = (lastUserHand + 1) % 3;
-                } else {
-                    // 通常ロジック
-                    if (totalCount < 10) {
-                        cpuHand = Math.floor(Math.random() * 3);
-                    } else {
-                        // 学習型：直近10回の最頻出に勝つ手を出す
-                        const counts = [0, 0, 0];
-                        const recent = history.slice(-10);
-                        recent.forEach(h => counts[h]++);
-                        const favorite = counts.indexOf(Math.max(...counts));
-                        cpuHand = (favorite + 2) % 3; 
-                    }
-                }
+                // プレイヤーの過去のすべての行動から傾向を分析
+                const counts = [0, 0, 0];
+                history.forEach(h => counts[h]++);
+                
+                // 最も多く出している手（favorite）を見つける
+                const maxCount = Math.max(...counts);
+                const favorite = counts.indexOf(maxCount);
+
+                // 相手が「次もその手（favorite）を出す」と予測し、それに勝つ手を出す
+                // 相手が グー(0) -> パー(2) を出す
+                // 相手が チョキ(1) -> グー(0) を出す
+                // 相手が パー(2) -> チョキ(1) を出す
+                cpuHand = (favorite + 2) % 3;
             }
 
             // --- 状態更新 ---
             history.push(userHand);
             totalCount++;
 
+            // 勝敗判定
             let resultMsg = "";
+            let logClass = "";
             if (userHand === cpuHand) {
                 resultMsg = "引き分け";
             } else if ((userHand === 0 && cpuHand === 1) || (userHand === 1 && cpuHand === 2) || (userHand === 2 && cpuHand === 0)) {
-                resultMsg = "勝ち";
+                resultMsg = "あなたの勝ち";
                 userWins++;
+                logClass = "win";
             } else {
-                resultMsg = "負け";
+                resultMsg = "私の勝ち";
+                logClass = "lose";
             }
 
             // 統計計算
@@ -192,31 +187,27 @@
             document.getElementById("wins").innerText = userWins;
             document.getElementById("winrate").innerText = winRate;
             
-            outputLog(`[${totalCount}] 君:${hands[userHand]} vs 私:${hands[cpuHand]} > ${resultMsg}`);
+            outputLog(`[${totalCount}] あなた:${hands[userHand]} vs 私:${hands[cpuHand]} > ${resultMsg}`, logClass);
 
-            // 10回ごとの更新処理
-            if (totalCount % 10 === 0) {
+            // 演出：常に分析しているように見せる
+            if (totalCount % 3 === 0) {
                 triggerUpdate();
-            } else if (totalCount === 1) {
-                document.getElementById("mode").innerText = "RUNNING";
             }
         }
 
-        function outputLog(msg) {
+        function outputLog(msg, className) {
             const logDiv = document.getElementById("log");
             const entry = document.createElement("div");
-            entry.className = "log-entry";
-            if (msg.includes("勝ち")) entry.classList.add("win");
+            entry.className = `log-entry ${className}`;
             entry.textContent = `> ${msg}`;
             logDiv.prepend(entry);
         }
 
         function triggerUpdate() {
-            document.getElementById("mode").innerText = "ADAPTIVE";
             const logDiv = document.getElementById("log");
             const entry = document.createElement("div");
             entry.className = "ai-update-heavy";
-            entry.textContent = "⚠ 学習データ更新完了 ⚠";
+            entry.textContent = "⚠ 行動パターン解析中... ⚠";
             logDiv.prepend(entry);
         }
     </script>
